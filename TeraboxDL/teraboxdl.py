@@ -126,12 +126,13 @@ class TeraboxDL:
             return ""
         return s[start_index:end_index]
 
-    def get_file_info(self, link: str) -> dict:
+    def get_file_info(self, link: str, direct_url: bool = False) -> dict:
         """
         Retrieve file information from Terabox.
 
         Args:
             link (str): The Terabox link to retrieve file information for.
+            direct_url (bool): Whether to return a direct download link.
 
         Returns:
             dict: A dictionary containing file information.
@@ -192,16 +193,17 @@ class TeraboxDL:
             ):
                 raise Exception("Failed to retrieve file list.")
 
-            # Get direct link
-            direct_link_response = requests.head(
-                response_data2["list"][0]["dlink"],
-                headers=self.headers,
-                allow_redirects=True
-            )
-            direct_link = direct_link_response.url
+            if direct_url:
+                # Get direct link
+                direct_link_response = requests.head(
+                    response_data2["list"][0]["dlink"],
+                    headers=self.headers,
+                    allow_redirects=True
+                )
+                direct_link = direct_link_response.url
             return {
                 "file_name": response_data2["list"][0]["server_filename"],
-                "download_link": direct_link,
+                "download_link": response_data2["list"][0]["dlink"] if not direct_url else direct_link,
                 "thumbnail": response_data2["list"][0]["thumbs"]["url3"],
                 "file_size": self.get_formatted_size(int(response_data2["list"][0]["size"])),
                 "sizebytes": int(response_data2["list"][0]["size"]),
