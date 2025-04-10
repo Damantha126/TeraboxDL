@@ -139,7 +139,7 @@ The `download()` method supports an optional `callback` parameter that allows yo
 ```python
 # Define a callback function to monitor progress
 def progress_callback(downloaded_bytes, total_bytes, percentage):
-    print(f"Downloaded: {downloaded_bytes} / {total_bytes} bytes ({percentage:.2f}%)")
+    print(f"\rDownloaded: {downloaded/1024/1024:.2f} MB / {total/1024/1024:.2f} MB ({percentage:.1f}%)", end="")
 
 # Download the file with a callback
 if "error" not in file_info:
