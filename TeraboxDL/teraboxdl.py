@@ -1,9 +1,10 @@
 import sys
+import json
+import re, os
 import requests
 from datetime import date
 from .__version__ import __version__
-from urllib.parse import urlparse, parse_qs
-
+from urllib.parse import urlparse, parse_qs, unquote
 
 # URL for fetching configurations
 CONFIGS="https://gist.githubusercontent.com/Damantha126/98270168b0d995f33d6d021746e1ce2f/raw/terabox_config.json"
@@ -48,6 +49,16 @@ class TeraboxDL:
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
         }
+        self.dlheaders = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://www.terabox.com/',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cookie':self.cookie
+        }
         # Initialize notice_displayed flag
         self.notice_displayed = False
         self.VERSION = __version__                
@@ -86,7 +97,7 @@ class TeraboxDL:
         return(self.VERSION)
     
     @staticmethod
-    def get_formatted_size(size_bytes: int) -> str:
+    def _get_formatted_size(size_bytes: int) -> str:
         """
         Convert file size in bytes to a human-readable format.
 
@@ -108,7 +119,7 @@ class TeraboxDL:
         return f"{size:.2f} {unit}"
 
     @staticmethod
-    def find_between(s: str, start: str, end: str) -> str:
+    def _find_between(s: str, start: str, end: str) -> str:
         """
         Extract a substring between two markers.
 
@@ -157,9 +168,9 @@ class TeraboxDL:
             respo = req.text
 
             # Extract tokens
-            js_token = self.find_between(respo, 'fn%28%22', '%22%29')
-            logid = self.find_between(respo, 'dp-logid=', '&')
-            bdstoken = self.find_between(respo, 'bdstoken":"', '"')
+            js_token = self._find_between(respo, 'fn%28%22', '%22%29')
+            logid = self._find_between(respo, 'dp-logid=', '&')
+            bdstoken = self._find_between(respo, 'bdstoken":"', '"')
 
             if not js_token or not logid or not bdstoken:
                 raise Exception("Failed to extract required tokens.")
@@ -205,8 +216,68 @@ class TeraboxDL:
                 "file_name": response_data2["list"][0]["server_filename"],
                 "download_link": response_data2["list"][0]["dlink"] if not direct_url else direct_link,
                 "thumbnail": response_data2["list"][0]["thumbs"]["url3"],
-                "file_size": self.get_formatted_size(int(response_data2["list"][0]["size"])),
+                "file_size": self._get_formatted_size(int(response_data2["list"][0]["size"])),
                 "sizebytes": int(response_data2["list"][0]["size"]),
             }
         except:
             return {"error": "An error occurred while retrieving file information."}
+    
+    def download(self, file_info: dict, save_path=None):
+        """
+        Download a file from Terabox using the provided file information.
+
+        Args:
+            file_info (dict): A dictionary containing file information, including the download link and file name.
+            save_path (str, optional): The directory path where the file should be saved. Defaults to the current directory.
+
+        Returns:
+            dict: A dictionary containing the file path or an error message.
+        """
+        session = requests.Session()
+        try:
+            # Validate file_info
+            if not isinstance(file_info, dict):
+                return {"error": "Invalid file_info format. Expected a dictionary."}
+            if "file_name" not in file_info or "download_link" not in file_info:
+                return {"error": "file_info must contain 'file_name' and 'download_link' keys."}
+
+            # Determine the file save path
+            if save_path:
+                try:
+                    os.makedirs(save_path, exist_ok=True)
+                    if os.path.isdir(save_path):
+                        file_path = os.path.join(save_path, file_info["file_name"])
+                    else:
+                        return {"error": "Provided save_path is not a directory."}
+                except Exception as e:
+                    return {"error": f"Invalid save_path: {e}"}
+            else:
+                file_path = file_info["file_name"]
+
+            # Start downloading the file
+            print(f"Downloading {file_info['file_name']}...")
+            with session.get(file_info["download_link"], headers=self.dlheaders, stream=True) as response:
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                block_size = 8192  # 8 KB
+
+                # Write the file in chunks
+                with open(file_path, 'wb') as file:
+                    downloaded = 0
+                    for chunk in response.iter_content(chunk_size=block_size):
+                        if chunk:
+                            file.write(chunk)
+                            downloaded += len(chunk)
+
+                            # Print progress
+                            if total_size > 0:
+                                done = int(50 * downloaded / total_size)
+                                print(f"\r[{'=' * done}{' ' * (50 - done)}] {downloaded / total_size * 100:.2f}%", end='')
+
+                print(f"\nDownload complete: {file_path}")
+                return {"file_path": file_path}
+
+        except requests.RequestException as e:
+            return {"error": f"Request error occurred: {e}"}
+        except Exception as e:
+            return {"error": f"An unexpected error occurred: {e}"}

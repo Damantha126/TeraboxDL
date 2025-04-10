@@ -75,6 +75,44 @@ A dictionary containing the following keys:
 
 ---
 
+## Downloading Files
+
+The `download()` method allows you to download files from Terabox using the file information retrieved by the `get_file_info()` method.
+
+### Method: `download(file_info: dict, save_path: str = None)`
+
+#### Parameters:
+- **`file_info`** *(dict)*: A dictionary containing file information, including:
+  - `file_name` *(str)*: The name of the file to be downloaded.
+  - `download_link` *(str)*: The direct download link for the file.
+- **`save_path`** *(str, optional)*: The directory path where the file should be saved. If not provided, the file will be saved in the current directory.
+
+#### Returns:
+- *(dict)*: A dictionary containing:
+  - `file_path` *(str)*: The path to the downloaded file, if successful.
+  - `error` *(str)*: An error message, if an error occurs.
+
+#### Example Usage:
+```python
+from teraboxdl import TeraboxDL
+
+# Initialize the TeraboxDL instance with a valid cookie
+terabox = TeraboxDL(cookie="your_cookie_here")
+
+# Retrieve file information
+file_info = terabox.get_file_info("https://www.terabox.com/s/your_link_here")
+
+# Download the file
+if "error" not in file_info:
+    result = terabox.download(file_info, save_path="downloads/")
+    if "error" in result:
+        print(f"Error: {result['error']}")
+    else:
+        print(f"File downloaded to: {result['file_path']}")
+else:
+    print(f"Error: {file_info['error']}")
+```
+
 ## Requirements
 
 - Python 3.7 or higher

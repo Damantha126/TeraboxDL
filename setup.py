@@ -26,14 +26,12 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Damantha126/TeraboxDL",
     packages=find_packages(),
-    keywords=["terabox", "python-pakage", "terabox-download", "damanthaja", "mritzme", "damantha126", "direct-download", "jasinghe", "damantha-jasinghe"],
+    keywords=["terabox", "python-package", "terabox-download", "damanthaja", "mritzme", "damantha126", "direct-download", "jasinghe", "damantha-jasinghe"],
     install_requires=[
         "requests",
     ],
     project_urls={
-        "Tracker": "https://github.com/Damantha126/TeraboxDL/issues",
-        "Community": "https://t.me/SDBOTs_inifinity",
-        "Source": "https://github.com/Damantha126/TeraboxDL",
+        "Community": "https://t.me/SDBOTs_inifinity"
     },
     classifiers=[
         "Programming Language :: Python :: 3",
