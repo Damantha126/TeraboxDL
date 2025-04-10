@@ -1,6 +1,6 @@
 import sys
-import json
-import re, os
+import os
+import tqdm
 import requests
 from datetime import date
 from .__version__ import __version__
@@ -222,13 +222,14 @@ class TeraboxDL:
         except:
             return {"error": "An error occurred while retrieving file information."}
     
-    def download(self, file_info: dict, save_path=None):
+    def download(self, file_info: dict, save_path=None, callback=None) -> dict:
         """
         Download a file from Terabox using the provided file information.
 
         Args:
             file_info (dict): A dictionary containing file information, including the download link and file name.
             save_path (str, optional): The directory path where the file should be saved. Defaults to the current directory.
+            callback (callable, optional): A callback function that receives progress updates with parameters (downloaded_bytes, total_bytes, percentage)
 
         Returns:
             dict: A dictionary containing the file path or an error message.
@@ -255,7 +256,6 @@ class TeraboxDL:
                 file_path = file_info["file_name"]
 
             # Start downloading the file
-            print(f"Downloading {file_info['file_name']}...")
             with session.get(file_info["download_link"], headers=self.dlheaders, stream=True) as response:
                 response.raise_for_status()
                 total_size = int(response.headers.get('content-length', 0))
@@ -264,15 +264,26 @@ class TeraboxDL:
                 # Write the file in chunks
                 with open(file_path, 'wb') as file:
                     downloaded = 0
+
+                    # Create tqdm progress bar if no callback is provided
+                    if callback is None:
+                        pbar = tqdm.tqdm(total=total_size, unit='B', unit_scale=True, 
+                                        desc=f"Downloading {file_info['file_name']}")
+                        
                     for chunk in response.iter_content(chunk_size=block_size):
                         if chunk:
                             file.write(chunk)
                             downloaded += len(chunk)
 
-                            # Print progress
-                            if total_size > 0:
-                                done = int(50 * downloaded / total_size)
-                                print(f"\r[{'=' * done}{' ' * (50 - done)}] {downloaded / total_size * 100:.2f}%", end='')
+                            # Update progress
+                            percentage = (downloaded / total_size) * 100 if total_size > 0 else 0
+                            
+                            if callback:
+                                callback(downloaded, total_size, percentage)
+                            else:
+                                pbar.update(len(chunk))
+                    if callback is None:
+                        pbar.close()
 
                 print(f"\nDownload complete: {file_path}")
                 return {"file_path": file_path}

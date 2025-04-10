@@ -29,6 +29,7 @@ setup(
     keywords=["terabox", "python-package", "terabox-download", "damanthaja", "mritzme", "damantha126", "direct-download", "jasinghe", "damantha-jasinghe"],
     install_requires=[
         "requests",
+        "tqdm",
     ],
     project_urls={
         "Community": "https://t.me/SDBOTs_inifinity"
