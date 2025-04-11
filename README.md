@@ -1,174 +1,145 @@
 # TeraboxDL 🚀
 
-TeraboxDL is a Python package designed to interact with Terabox, enabling you to retrieve file details such as file names, direct download links, thumbnails, and file sizes.
+TeraboxDL is a Python package for interacting with Terabox, enabling you to fetch file details such as name, download link, thumbnail, and size, and download files with support for custom progress tracking via a callback function.
 
-## Features ✨
+---
 
-- 🔍 Fetch file details from Terabox links.
-- 📥 Extract direct download links for files.
-- 🖼️ Retrieve file thumbnails and sizes.
-- 📂 Download files directly to a specified directory.
-- ⚠️ Handle errors gracefully with detailed error messages.
-- 📊 Display a progress bar during file downloads or use a custom callback for real-time progress tracking.
-- 🛠️ Automatically create directories for saving files if they do not exist.
-- 🐍 Support for Python 3.7 or higher.
+## 🌟 Features
 
+- 🔗 Get direct download links from Terabox.
+- 📝 View file name, size, and thumbnail.
+- 📥 Download files to any folder.
+- 📊 Built-in or custom progress bar support.
+- ❌ Handles errors with helpful messages.
+- 🐍 Works with Python 3.7 and above.
 
+---
 
-## Installation
+## ⚙️ Installation
 
-Install the package via pip:
+Install using pip:
 
 ```bash
 pip install terabox-downloader
 ```
 
-## Usage
+---
 
-Below is an example of how to use the TeraboxDL package:
+## 🍪 How to Get the Cookie
+<details>
+<summary><b>Click here for the tutorial</b></summary>
+
+To use TeraboxDL, you need to provide your Terabox cookie. Here's how you can get it:
+
+1. Open your `Edge browser` and log in to your Terabox account.
+2. Click the padlock icon next to the URL in the address bar and Click `Permissions for this site`.
+3. In the pop-up, click `Cookies and site data`.
+4 Then click `Cookies (X cookies in use)` to open the cookies viewer.
+5. Under the `terabox.com domain`, expand the Cookies section.
+5. Look for the `lang` and `ndus` cookies. Copy their values and combine them in the format:  
+    `lang=your_lang_value; ndus=your_ndus_value;`
+
+#### Example: 
+````python
+cookie = "lang=en; ndus=Y**********a;"
+````
+#### 📝 You can now use this cookie string in tools or scripts that require authentication with TeraBox.
+
+### For a visual guide, refer to the image below:
+
+![How to Get Cookie](HowToGetCookies.png)
+
+</details>
+
+## 🚀 Quick Start
 
 ```python
 from TeraboxDL import TeraboxDL
 
-# Initialize the TeraboxDL instance with your cookie
-cookie = "your_cookie_here" # Ex: "lang=en; ndus="
+# Step 1: Add your Terabox cookie
+cookie = "your_cookie_here"  # e.g., "lang=en; ndus="
+
+# Step 2: Create an instance of TeraboxDL
 terabox = TeraboxDL(cookie)
 
-# Retrieve file information from a Terabox link
+# Step 3: Paste your file link
 link = "https://www.terabox.app/s/your_link_here"
-file_info = terabox.get_file_info(link, direct_url=True)
 
-# Check if there was an error retrieving the file information
+# Step 4: Get file info
+file_info = terabox.get_file_info(link)
+
+# Step 5: Check for errors and show info
 if "error" in file_info:
     print("Error:", file_info["error"])
-    exit()
-
-# Print the retrieved file information
-print("File Name:", file_info["file_name"])
-print("Download Link:", file_info["download_link"])
-print("Thumbnail:", file_info["thumbnail"])
-print("File Size:", file_info["file_size"])
-
+else:
+    print("File Name:", file_info["file_name"])
+    print("Download Link:", file_info["download_link"])
+    print("Thumbnail:", file_info["thumbnail"])
+    print("File Size:", file_info["file_size"])
 ```
-
-## Methods
-
-### `TeraboxDL(cookie: str)`
-Initializes the `TeraboxDL` instance.
-
-**Parameters:**
-- `cookie` (str): The authentication cookie string.
 
 ---
 
-### `get_file_info(link: str) -> dict`
-Fetches file details from a Terabox link.
+## 📂 Downloading Files
 
-**Parameters:**
+```python
+# Download file
+result = terabox.download(file_info, save_path="downloads/")
 
-- `link` (str): The Terabox link to process.
-- `direct_url` (bool, optional): If set to `True`, the method will return a direct download link instead of the default download link. Defaults to `False`.
+if "error" in result:
+    print("Error:", result["error"])
+else:
+    print("✅ Downloaded to:", result["file_path"])
+```
 
-**Returns:**
+You can also show a **custom progress bar** using a callback:
 
-A dictionary containing the following keys:
-- `file_name` (str): The name of the file.
-- `download_link` (str): The download link for the file. If `direct_url` is `True`, this will be a direct download link.
-- `thumbnail` (str): The URL of the file's thumbnail.
-- `file_size` (str): The size of the file in a human-readable format (e.g., MB, KB).
-- `sizebytes` (int): The size of the file in bytes.
-- `error` (str, optional): An error message if something goes wrong.
+```python
+def progress_callback(downloaded, total_size, percentage):
+    done = int(50 * downloaded / total_size)
+    print(f"\r[{'=' * done}{' ' * (50 - done)}] {downloaded / total_size * 100:.2f}%", end='')
+
+# Use callback
+result = terabox.download(file_info, save_path="downloads/", callback=progress_callback)
+```
 
 ---
 
-## Downloading Files
+## 📘 API Overview
 
-The `download()` method allows you to download files from Terabox using the file information retrieved by the `get_file_info()` method.
+### `TeraboxDL(cookie)`
+Create an instance with your Terabox cookie.
 
-### Method: `download(file_info: dict, save_path: str = None)`
+### `get_file_info(link)`
+Returns file info:
+- `file_name`, `download_link`, `thumbnail`, `file_size`, `sizebytes`
+- If something goes wrong: `error`
 
-#### Parameters:
-- **`file_info`** *(dict)*: A dictionary containing file information, including:
-  - `file_name` *(str)*: The name of the file to be downloaded.
-  - `download_link` *(str)*: The direct download link for the file.
-- **`save_path`** *(str, optional)*: The directory path where the file should be saved. If not provided, the file will be saved in the current directory.
-- **`callback`** *(callable, optional)*: A callback function that receives progress updates with parameters (downloaded_bytes, total_bytes, percentage)
+### `download(file_info, save_path=None, callback=None)`
+Downloads the file using info from `get_file_info`.
 
-#### Returns:
-- *(dict)*: A dictionary containing:
-  - `file_path` *(str)*: The path to the downloaded file, if successful.
-  - `error` *(str)*: An error message, if an error occurs.
+Returns:
+- `file_path` if successful
+- `error` if failed
 
-#### Example Usage:
-```python
-from TeraboxDL import TeraboxDL
+---
 
-# Initialize the TeraboxDL instance with a valid cookie
-terabox = TeraboxDL(cookie="your_cookie_here")
+## 🔧 Notes
 
-# Retrieve file information
-file_info = terabox.get_file_info("https://www.terabox.com/s/your_link_here")
+- `save_path` is optional; defaults to the current folder.
+- Directory is auto-created if it doesn’t exist.
+- If `callback` is not provided, a default terminal progress bar is shown.
+- `callback` gives real-time download updates (bytes and %).
+- Use `callback` for GUI apps, bots, web interfaces, or logs.
 
-# Download the file
-if "error" not in file_info:
-    result = terabox.download(file_info, save_path="downloads/")
-    if "error" in result:
-        print(f"Error: {result['error']}")
-    else:
-        print(f"File downloaded to: {result['file_path']}")
-else:
-    print(f"Error: {file_info['error']}")
-```
-### Notes
+---
 
-- Ensure that the `file_info` dictionary contains valid `file_name` and `download_link` keys.
-- If the `save_path` is provided, it must be a valid directory. The method will create the directory if it does not exist.
-- The method displays a progress bar during the download process.
-- Handle exceptions gracefully to ensure smooth execution.
+## 📦 Requirements
 
-### Using the `callback` Parameter in `download()`
+- Python 3.7+
 
-The `download()` method supports an optional `callback` parameter that allows you to monitor the download progress programmatically. The `callback` function is called during the download process with the following parameters:
+---
 
-#### Callback Parameters:
-- **`downloaded_bytes`** *(int)*: The number of bytes downloaded so far.
-- **`total_bytes`** *(int)*: The total size of the file in bytes. If the size is unknown, this will be `0`.
-- **`percentage`** *(float)*: The percentage of the file downloaded so far.
+## 📝 License
 
-#### Example Usage:
-```python
-# Define a callback function to monitor progress
-def progress_callback(downloaded_bytes, total_bytes, percentage):
-    print(f"\rDownloaded: {downloaded/1024/1024:.2f} MB / {total/1024/1024:.2f} MB ({percentage:.1f}%)", end="")
-
-# Download the file with a callback
-if "error" not in file_info:
-    result = terabox.download(file_info, save_path="downloads/", callback=progress_callback)
-    if "error" in result:
-        print(f"Error: {result['error']}")
-    else:
-        print(f"File downloaded to: {result['file_path']}")
-else:
-    print(f"Error: {file_info['error']}")
-```
-
-### Notes
-
-- The `callback` function is invoked for each chunk of data downloaded, allowing you to track progress in real-time.
-- If no `callback` is provided, a terminal-based progress bar (powered by `tqdm`) is displayed by default.
-- Use the `callback` parameter for custom progress handling, such as updating a graphical user interface (GUI), logging progress to a file, or integrating with other monitoring tools.
-- Ensure that the `callback` function is designed to handle frequent updates efficiently to avoid performance bottlenecks during downloads.
-- The `total_bytes` parameter in the `callback` may be `0` if the file size is unknown, so handle such cases appropriately in your implementation.
-- This feature provides flexibility for developers to tailor the download experience to their specific needs.
-- Example use cases include displaying progress in a web application or sending periodic updates to a remote server.
-- For simple use cases, the default progress bar is sufficient and requires no additional setup.
-- Always test your `callback` implementation to ensure it behaves as expected under various network conditions.
-
-
-## Requirements
-
-- Python 3.7 or higher
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](https://github.com/Damantha126/TeraboxDL/blob/main/LICENSE) file for more details.
+MIT License. See [LICENSE](https://github.com/Damantha126/TeraboxDL/blob/main/LICENSE).

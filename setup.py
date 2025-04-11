@@ -21,15 +21,14 @@ setup(
     license="MIT",
     author="DamanthaJasinghe",
     author_email="damanthaja@gmail.com",
-    description="TeraboxDL is a Python package designed to interact with Terabox, enabling you to retrieve file details such as file names, direct download links, thumbnails, and file sizes.",
+    description="TeraboxDL is a Python package for interacting with Terabox, enabling you to fetch file details such as name, download link, thumbnail, and size, and download files with support for custom progress tracking via a callback function.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/Damantha126/TeraboxDL",
     packages=find_packages(),
-    keywords=["terabox", "python-package", "terabox-download", "damanthaja", "mritzme", "damantha126", "direct-download", "jasinghe", "damantha-jasinghe"],
+    keywords=["terabox", "python-package","terabox-bypass", "terabox-downloader", "damanthaja", "mritzme", "damantha126", "direct-download", "jasinghe", "damantha-jasinghe"],
     install_requires=[
         "requests",
-        "tqdm",
     ],
     project_urls={
         "Community": "https://t.me/SDBOTs_inifinity"

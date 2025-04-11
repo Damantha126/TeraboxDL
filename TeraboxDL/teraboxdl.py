@@ -1,10 +1,9 @@
 import sys
 import os
-import tqdm
 import requests
 from datetime import date
 from .__version__ import __version__
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import urlparse, parse_qs
 
 # URL for fetching configurations
 CONFIGS="https://gist.githubusercontent.com/Damantha126/98270168b0d995f33d6d021746e1ce2f/raw/terabox_config.json"
@@ -137,13 +136,12 @@ class TeraboxDL:
             return ""
         return s[start_index:end_index]
 
-    def get_file_info(self, link: str, direct_url: bool = False) -> dict:
+    def get_file_info(self, link: str) -> dict:
         """
         Retrieve file information from Terabox.
 
         Args:
             link (str): The Terabox link to retrieve file information for.
-            direct_url (bool): Whether to return a direct download link.
 
         Returns:
             dict: A dictionary containing file information.
@@ -204,20 +202,14 @@ class TeraboxDL:
             ):
                 raise Exception("Failed to retrieve file list.")
 
-            if direct_url:
-                # Get direct link
-                direct_link_response = requests.head(
-                    response_data2["list"][0]["dlink"],
-                    headers=self.headers,
-                    allow_redirects=True
-                )
-                direct_link = direct_link_response.url
+            # Extract file information from the response
+            file_info = response_data2["list"][0]
             return {
-                "file_name": response_data2["list"][0]["server_filename"],
-                "download_link": response_data2["list"][0]["dlink"] if not direct_url else direct_link,
-                "thumbnail": response_data2["list"][0]["thumbs"]["url3"],
-                "file_size": self._get_formatted_size(int(response_data2["list"][0]["size"])),
-                "sizebytes": int(response_data2["list"][0]["size"]),
+                "file_name": file_info.get("server_filename", ""),
+                "download_link": file_info.get("dlink", ""),
+                "thumbnail": file_info.get("thumbs", {}).get("url3", ""),
+                "file_size": self._get_formatted_size(int(file_info.get("size", 0))),
+                "size_bytes": int(file_info.get("size", 0)),
             }
         except:
             return {"error": "An error occurred while retrieving file information."}
@@ -264,11 +256,6 @@ class TeraboxDL:
                 # Write the file in chunks
                 with open(file_path, 'wb') as file:
                     downloaded = 0
-
-                    # Create tqdm progress bar if no callback is provided
-                    if callback is None:
-                        pbar = tqdm.tqdm(total=total_size, unit='B', unit_scale=True, 
-                                        desc=f"Downloading {file_info['file_name']}")
                         
                     for chunk in response.iter_content(chunk_size=block_size):
                         if chunk:
@@ -281,9 +268,9 @@ class TeraboxDL:
                             if callback:
                                 callback(downloaded, total_size, percentage)
                             else:
-                                pbar.update(len(chunk))
-                    if callback is None:
-                        pbar.close()
+                                if total_size > 0:
+                                    done = int(50 * downloaded / total_size)
+                                    print(f"\r[{'=' * done}{' ' * (50 - done)}] {downloaded / total_size * 100:.2f}%", end='')
 
                 print(f"\nDownload complete: {file_path}")
                 return {"file_path": file_path}
