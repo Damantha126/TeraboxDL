@@ -47,7 +47,7 @@ cookie = "lang=en; ndus=Y**********a;"
 
 ### For a visual guide, refer to the image below:
 
-![How to Get Cookie](HowToGetCookies.png)
+![How to Get Cookie](https://raw.githubusercontent.com/Damantha126/TeraboxDL/refs/heads/main/HowToGetCookies.png)
 
 </details>
 
