@@ -1,9 +1,11 @@
 import sys
 import os
+import time
 import requests
 from datetime import date
 from .__version__ import __version__
 from urllib.parse import urlparse, parse_qs
+from requests.exceptions import RequestException, ConnectionError, Timeout, ChunkedEncodingError
 
 # URL for fetching configurations
 CONFIGS="https://gist.githubusercontent.com/Damantha126/98270168b0d995f33d6d021746e1ce2f/raw/terabox_config.json"
@@ -106,7 +108,10 @@ class TeraboxDL:
         Returns:
             str: Human-readable file size.
         """
-        if size_bytes >= 1024 * 1024:
+        if size_bytes >= 1024 * 1024 * 1024:  # Add GB support
+            size = size_bytes / (1024 * 1024 * 1024)
+            unit = "GB"
+        elif size_bytes >= 1024 * 1024:
             size = size_bytes / (1024 * 1024)
             unit = "MB"
         elif size_bytes >= 1024:
@@ -151,9 +156,9 @@ class TeraboxDL:
                 return {"error": "Link cannot be empty."}
 
             # First request
-            temp_req = requests.get(link, headers=self.headers)
+            temp_req = requests.get(link, headers=self.headers, timeout=30)
             if not temp_req.ok:
-                return {"error": "Failed to fetch the initial link."}
+                return {"error": f"Failed to fetch the initial link. Status code: {temp_req.status_code}"}
 
             # Parse URL and check for 'surl' parameter
             parsed_url = urlparse(temp_req.url)
@@ -162,7 +167,7 @@ class TeraboxDL:
                 return {"error": "Invalid link. Please check the link."}
 
             # Second request
-            req = requests.get(temp_req.url, headers=self.headers)
+            req = requests.get(temp_req.url, headers=self.headers, timeout=30)
             respo = req.text
 
             # Extract tokens
@@ -191,7 +196,7 @@ class TeraboxDL:
             }
 
             # Third request to get file list
-            req2 = requests.get("https://www.terabox.app/share/list", headers=self.headers, params=params)
+            req2 = requests.get("https://www.terabox.app/share/list", headers=self.headers, params=params, timeout=30)
             response_data2 = req2.json()
 
             if (
@@ -200,7 +205,8 @@ class TeraboxDL:
                 not response_data2["list"] or
                 response_data2.get("errno")
             ):
-                raise Exception("Failed to retrieve file list.")
+                error_message = response_data2.get("errmsg", "Failed to retrieve file list.")
+                return {"error": error_message}
 
             # Extract file information from the response
             file_info = response_data2["list"][0]
@@ -211,10 +217,12 @@ class TeraboxDL:
                 "file_size": self._get_formatted_size(int(file_info.get("size", 0))),
                 "size_bytes": int(file_info.get("size", 0)),
             }
-        except:
-            return {"error": "An error occurred while retrieving file information."}
+        except RequestException as e:
+            return {"error": f"Request error occurred while getting file info: {str(e)}"}
+        except Exception as e:
+            return {"error": f"An error occurred while retrieving file information: {str(e)}"}
     
-    def download(self, file_info: dict, save_path=None, callback=None) -> dict:
+    def download(self, file_info: dict, save_path=None, callback=None, max_retries=5, timeout=60) -> dict:
         """
         Download a file from Terabox using the provided file information.
 
@@ -222,11 +230,14 @@ class TeraboxDL:
             file_info (dict): A dictionary containing file information, including the download link and file name.
             save_path (str, optional): The directory path where the file should be saved. Defaults to the current directory.
             callback (callable, optional): A callback function that receives progress updates with parameters (downloaded_bytes, total_bytes, percentage)
+            max_retries (int, optional): Maximum number of retry attempts. Defaults to 5.
+            timeout (int, optional): Request timeout in seconds. Defaults to 60.
 
         Returns:
             dict: A dictionary containing the file path or an error message.
         """
         session = requests.Session()
+        
         try:
             # Validate file_info
             if not isinstance(file_info, dict):
@@ -247,35 +258,113 @@ class TeraboxDL:
             else:
                 file_path = file_info["file_name"]
 
-            # Start downloading the file
-            with session.get(file_info["download_link"], headers=self.dlheaders, stream=True) as response:
-                response.raise_for_status()
-                total_size = int(response.headers.get('content-length', 0))
-                block_size = 8192  # 8 KB
-
-                # Write the file in chunks
-                with open(file_path, 'wb') as file:
-                    downloaded = 0
+            # Check if file already exists and get its size for resume capability
+            file_exists = os.path.exists(file_path)
+            downloaded_size = 0
+            
+            if file_exists:
+                downloaded_size = os.path.getsize(file_path)
+                print(f"Found existing file with {self._get_formatted_size(downloaded_size)} already downloaded.")
+            
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    # Update headers for resumable download if needed
+                    current_headers = dict(self.dlheaders)
+                    
+                    if downloaded_size > 0:
+                        current_headers['Range'] = f'bytes={downloaded_size}-'
+                        print(f"Resuming download from byte {downloaded_size}")
+                    
+                    # Start downloading the file
+                    with session.get(
+                        file_info["download_link"], 
+                        headers=current_headers, 
+                        stream=True, 
+                        timeout=timeout
+                    ) as response:
+                        response.raise_for_status()
                         
-                    for chunk in response.iter_content(chunk_size=block_size):
-                        if chunk:
-                            file.write(chunk)
-                            downloaded += len(chunk)
-
-                            # Update progress
-                            percentage = (downloaded / total_size) * 100 if total_size > 0 else 0
+                        # Handle resume response
+                        if downloaded_size > 0 and response.status_code == 206:  # Partial Content
+                            print("Server accepted resume request.")
+                        elif downloaded_size > 0 and response.status_code == 200:  # OK, but not supporting resume
+                            print("Warning: Server doesn't support resume. Starting from beginning.")
+                            downloaded_size = 0
+                        
+                        # Get total size from Content-Length header or from file_info
+                        total_size = int(response.headers.get('content-length', 0))
+                        
+                        if total_size == 0:
+                            total_size = file_info.get("size_bytes", 0)
+                        
+                        if downloaded_size > 0 and response.status_code == 206:
+                            # For resumed downloads, we need to add the already downloaded size
+                            total_size += downloaded_size
+                        
+                        # Use a larger block size for faster download
+                        block_size = 8192 * 8  # 64 KB
+                        
+                        # Open file in append mode if resuming, otherwise write mode
+                        mode = 'ab' if downloaded_size > 0 else 'wb'
+                        
+                        with open(file_path, mode) as file:
+                            current_downloaded = downloaded_size
+                            start_time = time.time()
+                            last_update_time = start_time
+                            bytes_since_last_update = 0
                             
-                            if callback:
-                                callback(downloaded, total_size, percentage)
-                            else:
-                                if total_size > 0:
-                                    done = int(50 * downloaded / total_size)
-                                    print(f"\r[{'=' * done}{' ' * (50 - done)}] {downloaded / total_size * 100:.2f}%", end='')
+                            for chunk in response.iter_content(chunk_size=block_size):
+                                if chunk:
+                                    file.write(chunk)
+                                    current_downloaded += len(chunk)
+                                    bytes_since_last_update += len(chunk)
+                                    
+                                    # Update progress less frequently to reduce console spam
+                                    current_time = time.time()
+                                    if current_time - last_update_time >= 0.5:  # Update every 0.5 seconds
+                                        # Calculate download speed
+                                        elapsed = current_time - last_update_time
+                                        speed = bytes_since_last_update / elapsed if elapsed > 0 else 0
+                                        
+                                        # Reset counters
+                                        bytes_since_last_update = 0
+                                        last_update_time = current_time
+                                        
+                                        # Calculate percentage
+                                        percentage = (current_downloaded / total_size) * 100 if total_size > 0 else 0
+                                        
+                                        if callback:
+                                            callback(current_downloaded, total_size, percentage)
+                                        else:
+                                            if total_size > 0:
+                                                done = int(50 * current_downloaded / total_size)
+                                                speed_text = f"{self._get_formatted_size(speed)}/s" if speed > 0 else "-- KB/s"
+                                                print(
+                                                    f"\r[{'=' * done}{' ' * (50 - done)}] {percentage:.2f}% | "
+                                                    f"{self._get_formatted_size(current_downloaded)} of {self._get_formatted_size(total_size)} | "
+                                                    f"{speed_text}", 
+                                                    end=''
+                                                )
+                    
+                    print(f"\nDownload complete: {file_path}")
+                    return {"file_path": file_path}
+                
+                except (ConnectionError, ChunkedEncodingError, Timeout, RequestException) as e:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        wait_time = 2 ** retry_count  # Exponential backoff
+                        print(f"\nDownload error: {e}. Retrying in {wait_time} seconds... (Attempt {retry_count}/{max_retries})")
+                        time.sleep(wait_time)
+                        
+                        # Update downloaded size for next attempt
+                        if os.path.exists(file_path):
+                            downloaded_size = os.path.getsize(file_path)
+                    else:
+                        return {"error": f"Request error occurred after {max_retries} attempts: {e}"}
+            
+            return {"error": f"Failed to download after {max_retries} attempts."}
 
-                print(f"\nDownload complete: {file_path}")
-                return {"file_path": file_path}
-
-        except requests.RequestException as e:
-            return {"error": f"Request error occurred: {e}"}
         except Exception as e:
             return {"error": f"An unexpected error occurred: {e}"}
